@@ -10,7 +10,7 @@ namespace STS2MultiPlayerPotionView.Patches
     /// <summary>
     ///     Patches for NMultiplayerPlayerState to display player potions
     /// </summary>
-    public class NMultiplayerPlayerStatePatch : IModPatches
+    public partial class NMultiplayerPlayerStatePatch : IModPatches
     {
         private static readonly Dictionary<NMultiplayerPlayerState, PotionDisplayContainer> PotionContainers = [];
 
@@ -77,25 +77,51 @@ namespace STS2MultiPlayerPotionView.Patches
             }
         }
 
-        public class PotionDisplayContainer(NMultiplayerPlayerState playerState)
+        // ReSharper disable once PartialTypeWithSinglePart
+        private partial class PotionDisplayContainer : HBoxContainer
         {
+            private readonly NMultiplayerPlayerState? _playerState;
             private readonly List<PotionSlotDisplay> _potionSlots = [];
-            private HBoxContainer? _potionContainer;
+            private Control? _spacer;
+
+            public PotionDisplayContainer(NMultiplayerPlayerState playerState)
+            {
+                _playerState = playerState;
+                Name = "PotionDisplayContainer";
+                CustomMinimumSize = new(0, 32);
+                MouseFilter = MouseFilterEnum.Stop;
+                AddThemeConstantOverride("separation", 2);
+            }
+
+            // ReSharper disable once UnusedMember.Local
+            public PotionDisplayContainer()
+            {
+                _playerState = null;
+            }
 
             public void Initialize()
             {
-                _potionContainer = new()
+                _spacer = new()
                 {
-                    Name = "PotionDisplayContainer",
-                    CustomMinimumSize = new(0, 32),
+                    Name = "PotionSpacer",
+                    CustomMinimumSize = new(0, 0),
+                    MouseFilter = MouseFilterEnum.Ignore,
                 };
-                _potionContainer.AddThemeConstantOverride("separation", 2);
-                _potionContainer.ZIndex = 10;
 
-                var topContainer = playerState.GetNode<HBoxContainer>("TopInfoContainer");
-                topContainer.AddChild(_potionContainer);
+                if (_playerState == null)
+                {
+                    Main.Logger.Error("Player state is null, cannot initialize potion display");
+                    return;
+                }
 
-                var player = playerState.Player;
+                var topContainer = _playerState.GetNode<HBoxContainer>("TopInfoContainer");
+                topContainer.AddChild(_spacer);
+
+                _playerState.AddChild(this);
+
+                Resized += OnResized;
+
+                var player = _playerState.Player;
                 player.PotionProcured += OnPotionChanged;
                 player.PotionDiscarded += OnPotionChanged;
                 player.UsedPotionRemoved += OnPotionChanged;
@@ -103,17 +129,14 @@ namespace STS2MultiPlayerPotionView.Patches
                 RefreshPotions();
             }
 
-            public void Cleanup()
+            public override void _Process(double delta)
             {
-                var player = playerState.Player;
-                player.PotionProcured -= OnPotionChanged;
-                player.PotionDiscarded -= OnPotionChanged;
-                player.UsedPotionRemoved -= OnPotionChanged;
+                if (_spacer != null && _spacer.IsInsideTree()) GlobalPosition = _spacer.GlobalPosition;
+            }
 
-                foreach (var slot in _potionSlots) slot.Cleanup();
-
-                _potionSlots.Clear();
-                _potionContainer?.QueueFree();
+            private void OnResized()
+            {
+                if (_spacer != null) _spacer.CustomMinimumSize = new(Size.X, 0);
             }
 
             private void OnPotionChanged(PotionModel _)
@@ -124,16 +147,35 @@ namespace STS2MultiPlayerPotionView.Patches
             private void RefreshPotions()
             {
                 foreach (var slot in _potionSlots) slot.Cleanup();
-
                 _potionSlots.Clear();
 
-                var potions = playerState.Player.PotionSlots;
+                if (_playerState == null) return;
+
+                var potions = _playerState.Player.PotionSlots;
                 foreach (var potion in potions)
                 {
                     if (potion == null) continue;
-                    var slot = new PotionSlotDisplay(_potionContainer!, potion);
+                    var slot = new PotionSlotDisplay(this, potion);
                     _potionSlots.Add(slot);
                 }
+            }
+
+            public void Cleanup()
+            {
+                if (_playerState == null) return;
+
+                var player = _playerState.Player;
+                player.PotionProcured -= OnPotionChanged;
+                player.PotionDiscarded -= OnPotionChanged;
+                player.UsedPotionRemoved -= OnPotionChanged;
+
+                foreach (var slot in _potionSlots) slot.Cleanup();
+                _potionSlots.Clear();
+
+                Resized -= OnResized;
+
+                _spacer?.QueueFree();
+                QueueFree();
             }
         }
 
@@ -150,7 +192,7 @@ namespace STS2MultiPlayerPotionView.Patches
                 _slotControl = new()
                 {
                     CustomMinimumSize = new(24, 24),
-                    MouseFilter = Control.MouseFilterEnum.Pass,
+                    MouseFilter = Control.MouseFilterEnum.Stop,
                 };
 
                 TextureRect potionImage = new()
