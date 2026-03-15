@@ -2,8 +2,8 @@ using Godot;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
-using STS2MultiPlayerPotionView.Patching.Core;
-using STS2MultiPlayerPotionView.Patching.Models;
+using STS2RitsuLib.Patching.Core;
+using STS2RitsuLib.Patching.Models;
 
 namespace STS2MultiPlayerPotionView.Patches
 {
@@ -136,7 +136,7 @@ namespace STS2MultiPlayerPotionView.Patches
 
             private void OnResized()
             {
-                if (_spacer != null) _spacer.CustomMinimumSize = new(Size.X, 0);
+                _spacer?.CustomMinimumSize = new(Size.X, 0);
             }
 
             private void OnPotionChanged(PotionModel _)
