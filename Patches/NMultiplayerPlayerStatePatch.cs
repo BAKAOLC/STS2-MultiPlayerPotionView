@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 using STS2RitsuLib.Patching.Core;
 using STS2RitsuLib.Patching.Models;
+using STS2MultiPlayerPotionView.Utils;
 
 namespace STS2MultiPlayerPotionView.Patches
 {
@@ -88,7 +89,7 @@ namespace STS2MultiPlayerPotionView.Patches
             {
                 _playerState = playerState;
                 Name = "PotionDisplayContainer";
-                CustomMinimumSize = new(0, 32);
+                CustomMinimumSize = new(0, PotionDisplaySettings.GetSlotSize().Y + 8f);
                 MouseFilter = MouseFilterEnum.Stop;
                 AddThemeConstantOverride("separation", 2);
             }
@@ -182,6 +183,7 @@ namespace STS2MultiPlayerPotionView.Patches
         private class PotionSlotDisplay
         {
             private readonly PotionModel _potion;
+            private readonly Panel _highlightBorder;
             private readonly Control _slotControl;
             private NHoverTipSet? _hoverTipSet;
 
@@ -191,7 +193,7 @@ namespace STS2MultiPlayerPotionView.Patches
 
                 _slotControl = new()
                 {
-                    CustomMinimumSize = new(24, 24),
+                    CustomMinimumSize = PotionDisplaySettings.GetSlotSize(),
                     MouseFilter = Control.MouseFilterEnum.Stop,
                 };
 
@@ -204,6 +206,15 @@ namespace STS2MultiPlayerPotionView.Patches
 
                 _slotControl.AddChild(potionImage);
                 potionImage.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+
+                _highlightBorder = new Panel
+                {
+                    Visible = PotionDisplaySettings.ShouldHighlight(_potion),
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                };
+                _highlightBorder.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+                _highlightBorder.AddThemeStyleboxOverride("panel", CreateHighlightStyle());
+                _slotControl.AddChild(_highlightBorder);
 
                 parent.AddChild(_slotControl);
 
@@ -241,6 +252,23 @@ namespace STS2MultiPlayerPotionView.Patches
 
                 NHoverTipSet.Remove(_slotControl);
                 _slotControl.QueueFree();
+            }
+
+            private static StyleBoxFlat CreateHighlightStyle()
+            {
+                return new()
+                {
+                    DrawCenter = false,
+                    BorderColor = PotionDisplaySettings.GetHighlightColor(),
+                    BorderWidthLeft = 2,
+                    BorderWidthTop = 2,
+                    BorderWidthRight = 2,
+                    BorderWidthBottom = 2,
+                    CornerRadiusTopLeft = 6,
+                    CornerRadiusTopRight = 6,
+                    CornerRadiusBottomLeft = 6,
+                    CornerRadiusBottomRight = 6,
+                };
             }
         }
     }

@@ -1,0 +1,16 @@
+{
+  "mod.displayName": "多人药水显示",
+  "page.title": "设置",
+  "page.description": "调整队友药水预览的显示大小，并高亮匹配关键词的药水。",
+  "section.display": "显示",
+  "contentScale.label": "内容大小",
+  "contentScale.description": "调整显示在每位队友旁边的药水图标大小。",
+  "keywords.label": "高亮关键词",
+  "keywords.emptyItem": "（空关键词）",
+  "keywords.emptyDescription": "只要物品包含这个关键词，或悬浮提示标题、描述包含这个关键词，就会显示边框。",
+  "keywords.add": "添加关键词",
+  "keywords.description": "会不区分大小写地匹配药水提示文本。",
+  "keywords.placeholder": "例如：消耗 / 格挡 / 中毒",
+  "color.label": "边框颜色",
+  "color.description": "支持实时预览、RGBA 调整以及 #FFD740FF 这样的十六进制输入。"
+}

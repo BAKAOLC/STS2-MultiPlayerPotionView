@@ -1,0 +1,16 @@
+{
+  "mod.displayName": "Multiplayer Potion View",
+  "page.title": "Settings",
+  "page.description": "Adjust potion preview scale and highlight potions that match configured keywords.",
+  "section.display": "Display",
+  "contentScale.label": "Content Size",
+  "contentScale.description": "Scales the potion icons shown beside each teammate.",
+  "keywords.label": "Highlight Keywords",
+  "keywords.emptyItem": "(empty keyword)",
+  "keywords.emptyDescription": "Items that contain this keyword, hover tip title, or description will receive a border.",
+  "keywords.add": "Add Keyword",
+  "keywords.description": "Keywords are matched case-insensitively against potion tooltips.",
+  "keywords.placeholder": "e.g. Exhaust / Block / Poison",
+  "color.label": "Border Color",
+  "color.description": "Includes a live preview, RGBA controls, and hex input such as #FFD740FF."
+}

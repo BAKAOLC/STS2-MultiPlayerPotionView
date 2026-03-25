@@ -1,6 +1,8 @@
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Modding;
+using STS2MultiPlayerPotionView.Data;
 using STS2MultiPlayerPotionView.Patches;
+using STS2MultiPlayerPotionView.Settings;
 using STS2RitsuLib;
 using STS2RitsuLib.Patching.Core;
 
@@ -21,6 +23,9 @@ namespace STS2MultiPlayerPotionView
 
             try
             {
+                ModDataStore.Initialize();
+                ModSettingsBootstrap.Initialize();
+
                 var patcher = RitsuLibFramework.CreatePatcher(Const.ModId, "main");
                 RegisterMainPatches(patcher);
 
