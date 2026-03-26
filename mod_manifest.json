@@ -4,7 +4,7 @@
   "name": "Multiplayer Potion View",
   "author": "OLC",
   "description": "Show the potions players have on the player name",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "has_pck": false,
   "has_dll": true,
   "affects_gameplay": false,
