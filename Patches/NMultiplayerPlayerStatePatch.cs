@@ -2,15 +2,12 @@ using Godot;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
+using STS2MultiPlayerPotionView.Utils;
 using STS2RitsuLib.Patching.Core;
 using STS2RitsuLib.Patching.Models;
-using STS2MultiPlayerPotionView.Utils;
 
 namespace STS2MultiPlayerPotionView.Patches
 {
-    /// <summary>
-    ///     Patches for NMultiplayerPlayerState to display player potions
-    /// </summary>
     public partial class NMultiplayerPlayerStatePatch : IModPatches
     {
         private static readonly Dictionary<NMultiplayerPlayerState, PotionDisplayContainer> PotionContainers = [];
@@ -21,9 +18,12 @@ namespace STS2MultiPlayerPotionView.Patches
             patcher.RegisterPatch<ExitTree>();
         }
 
-        /// <summary>
-        ///     Patch for _Ready method
-        /// </summary>
+        public static void RefreshAll()
+        {
+            foreach (var container in PotionContainers.Values.Where(GodotObject.IsInstanceValid))
+                container.RefreshPotions();
+        }
+
         public class Ready : IPatchMethod
         {
             public static string PatchId => "multiplayer_player_state_ready";
@@ -53,9 +53,6 @@ namespace STS2MultiPlayerPotionView.Patches
             }
         }
 
-        /// <summary>
-        ///     Patch for _ExitTree method
-        /// </summary>
         public class ExitTree : IPatchMethod
         {
             public static string PatchId => "multiplayer_player_state_exit_tree";
@@ -78,7 +75,6 @@ namespace STS2MultiPlayerPotionView.Patches
             }
         }
 
-        // ReSharper disable once PartialTypeWithSinglePart
         private partial class PotionDisplayContainer : HBoxContainer
         {
             private readonly NMultiplayerPlayerState? _playerState;
@@ -89,12 +85,10 @@ namespace STS2MultiPlayerPotionView.Patches
             {
                 _playerState = playerState;
                 Name = "PotionDisplayContainer";
-                CustomMinimumSize = new(0, PotionDisplaySettings.GetSlotSize().Y + 8f);
                 MouseFilter = MouseFilterEnum.Stop;
-                AddThemeConstantOverride("separation", 2);
+                AddThemeConstantOverride("separation", (int)PotionDisplaySettings.GetSeparation());
             }
 
-            // ReSharper disable once UnusedMember.Local
             public PotionDisplayContainer()
             {
                 _playerState = null;
@@ -105,7 +99,7 @@ namespace STS2MultiPlayerPotionView.Patches
                 _spacer = new()
                 {
                     Name = "PotionSpacer",
-                    CustomMinimumSize = new(0, 0),
+                    CustomMinimumSize = Vector2.Zero,
                     MouseFilter = MouseFilterEnum.Ignore,
                 };
 
@@ -117,27 +111,26 @@ namespace STS2MultiPlayerPotionView.Patches
 
                 var topContainer = _playerState.GetNode<HBoxContainer>("TopInfoContainer");
                 topContainer.AddChild(_spacer);
-
                 _playerState.AddChild(this);
-
-                Resized += OnResized;
-
-                var player = _playerState.Player;
-                player.PotionProcured += OnPotionChanged;
-                player.PotionDiscarded += OnPotionChanged;
-                player.UsedPotionRemoved += OnPotionChanged;
-
                 RefreshPotions();
             }
 
             public override void _Process(double delta)
             {
-                if (_spacer != null && _spacer.IsInsideTree()) GlobalPosition = _spacer.GlobalPosition;
+                if (_spacer == null || !_spacer.IsInsideTree())
+                    return;
+                GlobalPosition = _spacer.GlobalPosition + PotionDisplaySettings.GetAutoOffset() +
+                                 PotionDisplaySettings.GetUserOffset();
             }
 
-            private void OnResized()
+            private void RefreshLayout()
             {
-                _spacer?.CustomMinimumSize = new(Size.X, 0);
+                AddThemeConstantOverride("separation", (int)PotionDisplaySettings.GetSeparation());
+                CustomMinimumSize = new(
+                    PotionDisplaySettings.GetContentWidth(_potionSlots.Count),
+                    PotionDisplaySettings.GetContainerHeight());
+                _spacer?.CustomMinimumSize = new(CustomMinimumSize.X, 0f);
+                Visible = _potionSlots.Count > 0;
             }
 
             private void OnPotionChanged(PotionModel _)
@@ -145,7 +138,7 @@ namespace STS2MultiPlayerPotionView.Patches
                 RefreshPotions();
             }
 
-            private void RefreshPotions()
+            public void RefreshPotions()
             {
                 foreach (var slot in _potionSlots) slot.Cleanup();
                 _potionSlots.Clear();
@@ -159,6 +152,8 @@ namespace STS2MultiPlayerPotionView.Patches
                     var slot = new PotionSlotDisplay(this, potion);
                     _potionSlots.Add(slot);
                 }
+
+                RefreshLayout();
             }
 
             public void Cleanup()
@@ -173,8 +168,6 @@ namespace STS2MultiPlayerPotionView.Patches
                 foreach (var slot in _potionSlots) slot.Cleanup();
                 _potionSlots.Clear();
 
-                Resized -= OnResized;
-
                 _spacer?.QueueFree();
                 QueueFree();
             }
@@ -183,7 +176,6 @@ namespace STS2MultiPlayerPotionView.Patches
         private class PotionSlotDisplay
         {
             private readonly PotionModel _potion;
-            private readonly Panel _highlightBorder;
             private readonly Control _slotControl;
             private NHoverTipSet? _hoverTipSet;
 
@@ -194,10 +186,11 @@ namespace STS2MultiPlayerPotionView.Patches
                 _slotControl = new()
                 {
                     CustomMinimumSize = PotionDisplaySettings.GetSlotSize(),
+                    Size = PotionDisplaySettings.GetSlotSize(),
                     MouseFilter = Control.MouseFilterEnum.Stop,
                 };
 
-                TextureRect potionImage = new()
+                var potionImage = new TextureRect
                 {
                     ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
                     StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
@@ -207,14 +200,17 @@ namespace STS2MultiPlayerPotionView.Patches
                 _slotControl.AddChild(potionImage);
                 potionImage.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 
-                _highlightBorder = new Panel
+                if (PotionDisplaySettings.TryGetHighlightColor(_potion, out var color))
                 {
-                    Visible = PotionDisplaySettings.ShouldHighlight(_potion),
-                    MouseFilter = Control.MouseFilterEnum.Ignore,
-                };
-                _highlightBorder.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-                _highlightBorder.AddThemeStyleboxOverride("panel", CreateHighlightStyle());
-                _slotControl.AddChild(_highlightBorder);
+                    var highlightBorder = new Panel
+                    {
+                        Visible = true,
+                        MouseFilter = Control.MouseFilterEnum.Ignore,
+                    };
+                    highlightBorder.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+                    highlightBorder.AddThemeStyleboxOverride("panel", CreateHighlightStyle(color));
+                    _slotControl.AddChild(highlightBorder);
+                }
 
                 parent.AddChild(_slotControl);
 
@@ -249,17 +245,16 @@ namespace STS2MultiPlayerPotionView.Patches
             {
                 _slotControl.MouseEntered -= OnMouseEntered;
                 _slotControl.MouseExited -= OnMouseExited;
-
                 NHoverTipSet.Remove(_slotControl);
                 _slotControl.QueueFree();
             }
 
-            private static StyleBoxFlat CreateHighlightStyle()
+            private static StyleBoxFlat CreateHighlightStyle(Color borderColor)
             {
                 return new()
                 {
                     DrawCenter = false,
-                    BorderColor = PotionDisplaySettings.GetHighlightColor(),
+                    BorderColor = borderColor,
                     BorderWidthLeft = 2,
                     BorderWidthTop = 2,
                     BorderWidthRight = 2,

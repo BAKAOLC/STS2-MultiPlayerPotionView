@@ -1,6 +1,6 @@
+using STS2MultiPlayerPotionView.Data.Models;
 using STS2RitsuLib;
 using STS2RitsuLib.Utils.Persistence;
-using STS2MultiPlayerPotionView.Data.Models;
 
 namespace STS2MultiPlayerPotionView.Data
 {
@@ -26,13 +26,26 @@ namespace STS2MultiPlayerPotionView.Data
                         CurrentDataVersion = ModSettings.CurrentDataVersion,
                         MinimumSupportedDataVersion = 1,
                         SchemaVersionProperty = "data_version",
-                    });
+                    },
+                    [
+                        new HighlightRulesV1ToV2Migration(),
+                    ]);
             }
         }
 
         public static T Get<T>(string key) where T : class, new()
         {
             return Store.Get<T>(key);
+        }
+
+        public static void Modify<T>(string key, Action<T> modifier) where T : class, new()
+        {
+            Store.Modify(key, modifier);
+        }
+
+        public static void Save(string key)
+        {
+            Store.Save(key);
         }
     }
 }
