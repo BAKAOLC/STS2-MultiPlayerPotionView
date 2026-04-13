@@ -112,6 +112,12 @@ namespace STS2MultiPlayerPotionView.Patches
                 var topContainer = _playerState.GetNode<HBoxContainer>("TopInfoContainer");
                 topContainer.AddChild(_spacer);
                 _playerState.AddChild(this);
+
+                var player = _playerState.Player;
+                player.PotionProcured += OnPotionChanged;
+                player.PotionDiscarded += OnPotionChanged;
+                player.UsedPotionRemoved += OnPotionChanged;
+
                 RefreshPotions();
             }
 
