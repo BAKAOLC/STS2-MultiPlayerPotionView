@@ -208,9 +208,11 @@ namespace STS2MultiPlayerPotionView.Settings
             row.AddChild(rarityGroup);
             row.AddChild(usageGroup);
             var requirementRow = ModSettingsUiControlTheming.CreateCompactToggleRow(
-                ModSettingsUiControlTheming.CreateCompactToggleField(ModSettingsLocalization.Get("template.usable", "Require usable"), usableToggle));
+                ModSettingsUiControlTheming.CreateCompactToggleField(
+                    ModSettingsLocalization.Get("template.usable", "Require usable"), usableToggle));
             var colorRow = ModSettingsUiControlTheming.CreateCompactEditorRow(3,
-                ModSettingsUiControlTheming.CreateCompactEditorField(ModSettingsLocalization.Get("rule.color", "Rule Color"), colorPicker));
+                ModSettingsUiControlTheming.CreateCompactEditorField(
+                    ModSettingsLocalization.Get("rule.color", "Rule Color"), colorPicker));
 
             row.AddChild(targetGroup);
             row.AddChild(effectsEdit);

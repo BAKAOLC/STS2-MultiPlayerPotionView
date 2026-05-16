@@ -1,4 +1,5 @@
 using Godot;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
@@ -155,7 +156,7 @@ namespace STS2MultiPlayerPotionView.Patches
                 foreach (var potion in potions)
                 {
                     if (potion == null) continue;
-                    var slot = new PotionSlotDisplay(this, potion);
+                    var slot = new PotionSlotDisplay(this, _playerState.Player, potion);
                     _potionSlots.Add(slot);
                 }
 
@@ -181,12 +182,14 @@ namespace STS2MultiPlayerPotionView.Patches
 
         private class PotionSlotDisplay
         {
+            private readonly Player _player;
             private readonly PotionModel _potion;
             private readonly Control _slotControl;
             private NHoverTipSet? _hoverTipSet;
 
-            public PotionSlotDisplay(Control parent, PotionModel potion)
+            public PotionSlotDisplay(Control parent, Player player, PotionModel potion)
             {
+                _player = player;
                 _potion = potion;
 
                 _slotControl = new()
@@ -225,6 +228,23 @@ namespace STS2MultiPlayerPotionView.Patches
 
                 _slotControl.MouseEntered += OnMouseEntered;
                 _slotControl.MouseExited += OnMouseExited;
+                _slotControl.GuiInput += OnGuiInput;
+            }
+
+            private void OnGuiInput(InputEvent @event)
+            {
+                if (@event is not InputEventMouseButton
+                    {
+                        Pressed: true,
+                        AltPressed: true,
+                        ButtonIndex: MouseButton.Left or MouseButton.Right,
+                    })
+                    return;
+
+                if (!LemonSpireInterop.TrySendPotionToChat(_player, _potion))
+                    return;
+
+                _slotControl.GetViewport()?.SetInputAsHandled();
             }
 
             private void OnMouseEntered()
@@ -251,6 +271,7 @@ namespace STS2MultiPlayerPotionView.Patches
             {
                 _slotControl.MouseEntered -= OnMouseEntered;
                 _slotControl.MouseExited -= OnMouseExited;
+                _slotControl.GuiInput -= OnGuiInput;
                 NHoverTipSet.Remove(_slotControl);
                 _slotControl.QueueFree();
             }
