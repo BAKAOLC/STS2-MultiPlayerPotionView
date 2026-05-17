@@ -237,12 +237,19 @@ namespace STS2MultiPlayerPotionView.Patches
                     {
                         Pressed: true,
                         AltPressed: true,
-                        ButtonIndex: MouseButton.Left or MouseButton.Right,
+                        ButtonIndex: var buttonIndex,
                     })
                     return;
 
-                if (!LemonSpireInterop.TrySendPotionToChat(_player, _potion))
-                    return;
+                var handled = false;
+
+                if (buttonIndex is MouseButton.Left or MouseButton.Right)
+                    handled |= LemonSpireInterop.TrySendPotionToChat(_player, _potion);
+
+                if (buttonIndex == MouseButton.Left)
+                    handled |= TypingInterop.TrySendPotionLink(_potion);
+
+                if (!handled) return;
 
                 _slotControl.GetViewport()?.SetInputAsHandled();
             }
