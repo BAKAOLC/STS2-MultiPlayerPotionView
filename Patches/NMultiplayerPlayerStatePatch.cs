@@ -1,5 +1,6 @@
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
@@ -258,7 +259,7 @@ namespace STS2MultiPlayerPotionView.Patches
             {
                 try
                 {
-                    _hoverTipSet = NHoverTipSet.CreateAndShow(_slotControl, _potion.HoverTips.ToArray());
+                    _hoverTipSet = NHoverTipSet.CreateAndShow(_slotControl, _potion.HoverTips.ToArray(), HoverTipAlignment.Center);
                     _hoverTipSet?.GlobalPosition = _slotControl.GlobalPosition + Vector2.Down * 40f;
                 }
                 catch (Exception ex)
