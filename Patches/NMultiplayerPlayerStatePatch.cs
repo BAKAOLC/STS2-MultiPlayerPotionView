@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
+using MegaCrit.Sts2.Core.Nodes.Potions;
 using STS2MultiPlayerPotionView.Utils;
 using STS2RitsuLib.Patching.Core;
 using STS2RitsuLib.Patching.Models;
@@ -40,6 +41,7 @@ namespace STS2MultiPlayerPotionView.Patches
             }
 
             // ReSharper disable once InconsistentNaming
+            // ReSharper disable once UnusedMember.Global
             public static void Postfix(NMultiplayerPlayerState __instance)
             {
                 try
@@ -69,6 +71,7 @@ namespace STS2MultiPlayerPotionView.Patches
             }
 
             // ReSharper disable once InconsistentNaming
+            // ReSharper disable once UnusedMember.Global
             public static void Postfix(NMultiplayerPlayerState __instance)
             {
                 if (!PotionContainers.TryGetValue(__instance, out var container)) return;
@@ -81,7 +84,7 @@ namespace STS2MultiPlayerPotionView.Patches
         {
             private readonly NMultiplayerPlayerState? _playerState;
             private readonly List<PotionSlotDisplay> _potionSlots = [];
-            private Control? _spacer;
+            private PotionDisplayAnchor? _spacer;
 
             public PotionDisplayContainer(NMultiplayerPlayerState playerState)
             {
@@ -91,6 +94,7 @@ namespace STS2MultiPlayerPotionView.Patches
                 AddThemeConstantOverride("separation", (int)PotionDisplaySettings.GetSeparation());
             }
 
+            // ReSharper disable once UnusedMember.Local
             public PotionDisplayContainer()
             {
                 _playerState = null;
@@ -104,6 +108,8 @@ namespace STS2MultiPlayerPotionView.Patches
                     CustomMinimumSize = Vector2.Zero,
                     MouseFilter = MouseFilterEnum.Ignore,
                 };
+                _spacer.TransformChanged += UpdatePosition;
+                _spacer.Resized += UpdatePosition;
 
                 if (_playerState == null)
                 {
@@ -123,12 +129,12 @@ namespace STS2MultiPlayerPotionView.Patches
                 RefreshPotions();
             }
 
-            public override void _Process(double delta)
+            private void UpdatePosition()
             {
-                if (_spacer == null || !_spacer.IsInsideTree())
+                if (_spacer == null || !_spacer.IsInsideTree() || _playerState == null)
                     return;
-                GlobalPosition = _spacer.GlobalPosition + PotionDisplaySettings.GetAutoOffset() +
-                                 PotionDisplaySettings.GetUserOffset();
+                Position = _playerState.GetGlobalTransform().AffineInverse() * _spacer.GlobalPosition +
+                           PotionDisplaySettings.GetAutoOffset() + PotionDisplaySettings.GetUserOffset();
             }
 
             private void RefreshLayout()
@@ -139,6 +145,7 @@ namespace STS2MultiPlayerPotionView.Patches
                     PotionDisplaySettings.GetContainerHeight());
                 _spacer?.CustomMinimumSize = new(CustomMinimumSize.X, 0f);
                 Visible = _potionSlots.Count > 0;
+                UpdatePosition();
             }
 
             private void OnPotionChanged(PotionModel _)
@@ -176,8 +183,30 @@ namespace STS2MultiPlayerPotionView.Patches
                 foreach (var slot in _potionSlots) slot.Cleanup();
                 _potionSlots.Clear();
 
-                _spacer?.QueueFree();
+                if (_spacer != null)
+                {
+                    _spacer.TransformChanged -= UpdatePosition;
+                    _spacer.Resized -= UpdatePosition;
+                    _spacer.QueueFree();
+                }
+
                 QueueFree();
+            }
+        }
+
+        private partial class PotionDisplayAnchor : Control
+        {
+            public event Action? TransformChanged;
+
+            public PotionDisplayAnchor()
+            {
+                SetNotifyTransform(true);
+            }
+
+            public override void _Notification(int what)
+            {
+                if (what == NotificationTransformChanged)
+                    TransformChanged?.Invoke();
             }
         }
 
@@ -185,8 +214,9 @@ namespace STS2MultiPlayerPotionView.Patches
         {
             private readonly Player _player;
             private readonly PotionModel _potion;
+            private readonly NPotionHolder _potionHolder;
             private readonly Control _slotControl;
-            private NHoverTipSet? _hoverTipSet;
+            private NHoverTipSet? _positionedHoverTipSet;
 
             public PotionSlotDisplay(Control parent, Player player, PotionModel potion)
             {
@@ -197,18 +227,22 @@ namespace STS2MultiPlayerPotionView.Patches
                 {
                     CustomMinimumSize = PotionDisplaySettings.GetSlotSize(),
                     Size = PotionDisplaySettings.GetSlotSize(),
+                    SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
                     MouseFilter = Control.MouseFilterEnum.Stop,
                 };
 
-                var potionImage = new TextureRect
-                {
-                    ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                    StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                    MouseFilter = Control.MouseFilterEnum.Ignore,
-                };
+                parent.AddChild(_slotControl);
 
-                _slotControl.AddChild(potionImage);
-                potionImage.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+                _potionHolder = NPotionHolder.Create(isUsable: false);
+                _slotControl.AddChild(_potionHolder);
+                _potionHolder.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
+                _potionHolder.PivotOffset = Vector2.Zero;
+                _potionHolder.Scale = PotionDisplaySettings.GetSlotSize() / _potionHolder.Size;
+                _potionHolder.Position = Vector2.Zero;
+
+                var potionNode = NPotion.Create(_potion)!;
+                _potionHolder.AddPotion(potionNode);
+                potionNode.Position = Vector2.Zero;
 
                 if (PotionDisplaySettings.TryGetHighlightColor(_potion, out var color))
                 {
@@ -222,14 +256,22 @@ namespace STS2MultiPlayerPotionView.Patches
                     _slotControl.AddChild(highlightBorder);
                 }
 
-                parent.AddChild(_slotControl);
+                _potionHolder.GuiInput += OnGuiInput;
+                _potionHolder.MouseEntered += RepositionHoverTip;
+                _potionHolder.FocusEntered += RepositionHoverTip;
+            }
 
-                potionImage.Texture = _potion.Image;
-                potionImage.SelfModulate = Colors.White;
+            private void RepositionHoverTip()
+            {
+                if (!NHoverTipSet._activeHoverTips.TryGetValue(_potionHolder, out var hoverTipSet) ||
+                    hoverTipSet == _positionedHoverTipSet)
+                    return;
 
-                _slotControl.MouseEntered += OnMouseEntered;
-                _slotControl.MouseExited += OnMouseExited;
-                _slotControl.GuiInput += OnGuiInput;
+                var nativeDistance = _potionHolder.Size.Y * Mathf.Max(1.5f, _potionHolder.Scale.Y);
+                var displayDistance = _potionHolder.GetGlobalRect().Size.Y * 1.5f;
+                hoverTipSet.GlobalPosition += Vector2.Down * (displayDistance - nativeDistance);
+                hoverTipSet.SetAlignment(_potionHolder, HoverTipAlignment.None);
+                _positionedHoverTipSet = hoverTipSet;
             }
 
             private void OnGuiInput(InputEvent @event)
@@ -255,32 +297,12 @@ namespace STS2MultiPlayerPotionView.Patches
                 _slotControl.GetViewport()?.SetInputAsHandled();
             }
 
-            private void OnMouseEntered()
-            {
-                try
-                {
-                    _hoverTipSet = NHoverTipSet.CreateAndShow(_slotControl, _potion.HoverTips.ToArray(), HoverTipAlignment.Center);
-                    _hoverTipSet?.GlobalPosition = _slotControl.GlobalPosition + Vector2.Down * 40f;
-                }
-                catch (Exception ex)
-                {
-                    Main.Logger.Error($"Failed to show potion hover tip: {ex.Message}");
-                }
-            }
-
-            private void OnMouseExited()
-            {
-                if (_hoverTipSet == null) return;
-                NHoverTipSet.Remove(_slotControl);
-                _hoverTipSet = null;
-            }
-
             public void Cleanup()
             {
-                _slotControl.MouseEntered -= OnMouseEntered;
-                _slotControl.MouseExited -= OnMouseExited;
-                _slotControl.GuiInput -= OnGuiInput;
-                NHoverTipSet.Remove(_slotControl);
+                _potionHolder.GuiInput -= OnGuiInput;
+                _potionHolder.MouseEntered -= RepositionHoverTip;
+                _potionHolder.FocusEntered -= RepositionHoverTip;
+                NHoverTipSet.Remove(_potionHolder);
                 _slotControl.QueueFree();
             }
 
